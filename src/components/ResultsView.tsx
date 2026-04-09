@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion';
-import { Download, AlertTriangle, CheckCircle, Info, BarChart3 } from 'lucide-react';
+import { Download, AlertTriangle, CheckCircle, Info, BarChart3, Globe } from 'lucide-react';
 import CircleProgress from './CircleProgress';
 import { Button } from '@/components/ui/button';
 
 export interface AnalysisResult {
   aiPercentage: number;
   humanPercentage: number;
+  internetPercentage: number;
   confidence: number;
   flaggedSections: string[];
   recommendations: string[];
@@ -33,9 +34,10 @@ const ResultsView = ({ result, fileName, onDownload, onReset }: ResultsViewProps
     >
       {/* Score circles */}
       <motion.div variants={item} className="glass-card rounded-2xl p-8">
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-8 sm:gap-16">
+        <div className="grid grid-cols-2 sm:grid-cols-4 items-center justify-items-center gap-6">
           <CircleProgress value={result.aiPercentage} label="AI Generated" color="accent" />
           <CircleProgress value={result.humanPercentage} label="Human Written" color="primary" />
+          <CircleProgress value={result.internetPercentage} label="Internet Match" color="warning" />
           <CircleProgress value={result.confidence} label="Confidence" color="secondary" />
         </div>
       </motion.div>
@@ -48,6 +50,19 @@ const ResultsView = ({ result, fileName, onDownload, onReset }: ResultsViewProps
         </div>
         <p className="text-muted-foreground text-sm leading-relaxed">{result.summary}</p>
       </motion.div>
+
+      {/* Internet content info */}
+      {result.internetPercentage > 0 && (
+        <motion.div variants={item} className="glass-card rounded-2xl p-6 border-l-4 border-warning">
+          <div className="flex items-center gap-2 mb-3">
+            <Globe className="h-5 w-5 text-warning" />
+            <h3 className="font-display font-semibold text-foreground">Internet Content Detected</h3>
+          </div>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            Approximately <span className="text-warning font-semibold">{result.internetPercentage}%</span> of this assignment appears to match content found on the internet. This may indicate copied or closely paraphrased material from online sources.
+          </p>
+        </motion.div>
+      )}
 
       {/* Flagged sections */}
       {result.flaggedSections.length > 0 && (

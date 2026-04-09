@@ -33,16 +33,14 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are an AI content detector. Analyze the provided text and determine what percentage is likely AI-generated vs human-written. Return a JSON object with these exact keys:
-{
-  "aiPercentage": <number 0-100>,
-  "humanPercentage": <number 0-100>,
-  "confidence": <number 0-100>,
-  "flaggedSections": [<array of short strings describing which parts look AI-generated>],
-  "recommendations": [<array of actionable recommendation strings>],
-  "summary": "<brief overall analysis summary>"
-}
-Only output valid JSON, nothing else.`,
+            content: `You are an AI content detector and plagiarism checker. Analyze the provided text and determine:
+1. What percentage is likely AI-generated vs human-written
+2. What percentage appears to match common internet content (plagiarism/copied from web sources)
+3. Which specific parts look AI-generated or copied
+4. Confidence in your analysis
+5. Actionable recommendations for the student
+
+Return results via the report_analysis function. The internetPercentage should estimate how much of the text appears to be directly copied or closely paraphrased from commonly available internet sources.`,
           },
           { role: "user", content: truncated },
         ],
@@ -51,18 +49,19 @@ Only output valid JSON, nothing else.`,
             type: "function",
             function: {
               name: "report_analysis",
-              description: "Report AI content analysis results",
+              description: "Report AI content and internet plagiarism analysis results",
               parameters: {
                 type: "object",
                 properties: {
-                  aiPercentage: { type: "number" },
-                  humanPercentage: { type: "number" },
-                  confidence: { type: "number" },
-                  flaggedSections: { type: "array", items: { type: "string" } },
-                  recommendations: { type: "array", items: { type: "string" } },
-                  summary: { type: "string" },
+                  aiPercentage: { type: "number", description: "Percentage of text likely AI-generated (0-100)" },
+                  humanPercentage: { type: "number", description: "Percentage of text likely human-written (0-100)" },
+                  internetPercentage: { type: "number", description: "Percentage of text matching internet sources (0-100)" },
+                  confidence: { type: "number", description: "Confidence in the analysis (0-100)" },
+                  flaggedSections: { type: "array", items: { type: "string" }, description: "Sections that look AI-generated or copied" },
+                  recommendations: { type: "array", items: { type: "string" }, description: "Actionable recommendations" },
+                  summary: { type: "string", description: "Brief overall analysis summary" },
                 },
-                required: ["aiPercentage", "humanPercentage", "confidence", "flaggedSections", "recommendations", "summary"],
+                required: ["aiPercentage", "humanPercentage", "internetPercentage", "confidence", "flaggedSections", "recommendations", "summary"],
                 additionalProperties: false,
               },
             },
@@ -96,6 +95,11 @@ Only output valid JSON, nothing else.`,
     } else {
       const content = data.choices?.[0]?.message?.content || "";
       result = JSON.parse(content);
+    }
+
+    // Ensure internetPercentage exists
+    if (result.internetPercentage === undefined) {
+      result.internetPercentage = 0;
     }
 
     return new Response(JSON.stringify(result), {

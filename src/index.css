@@ -6,51 +6,54 @@
 
 @layer base {
   :root {
-    --background: 225 25% 6%;
+    --background: 220 20% 7%;
     --foreground: 210 40% 96%;
 
-    --card: 225 20% 10%;
+    --card: 220 18% 11%;
     --card-foreground: 210 40% 96%;
 
-    --popover: 225 20% 10%;
+    --popover: 220 18% 11%;
     --popover-foreground: 210 40% 96%;
 
-    --primary: 190 95% 50%;
-    --primary-foreground: 225 25% 6%;
+    --primary: 160 84% 39%;
+    --primary-foreground: 220 20% 7%;
 
-    --secondary: 260 80% 60%;
+    --secondary: 230 70% 60%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 225 15% 16%;
+    --muted: 220 15% 16%;
     --muted-foreground: 215 20% 55%;
 
-    --accent: 320 80% 55%;
+    --accent: 350 80% 55%;
     --accent-foreground: 210 40% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 220 20% 7%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 225 15% 18%;
-    --input: 225 15% 18%;
-    --ring: 190 95% 50%;
+    --border: 220 15% 18%;
+    --input: 220 15% 18%;
+    --ring: 160 84% 39%;
 
     --radius: 0.75rem;
 
-    --glass-bg: hsla(225, 20%, 12%, 0.6);
+    --glass-bg: hsla(220, 18%, 12%, 0.6);
     --glass-border: hsla(210, 40%, 96%, 0.08);
     --glass-shadow: 0 8px 32px hsla(0, 0%, 0%, 0.3);
-    --glow-primary: 0 0 30px hsla(190, 95%, 50%, 0.3);
-    --glow-secondary: 0 0 30px hsla(260, 80%, 60%, 0.3);
-    --glow-accent: 0 0 30px hsla(320, 80%, 55%, 0.3);
+    --glow-primary: 0 0 30px hsla(160, 84%, 39%, 0.3);
+    --glow-secondary: 0 0 30px hsla(230, 70%, 60%, 0.3);
+    --glow-accent: 0 0 30px hsla(350, 80%, 55%, 0.3);
 
-    --sidebar-background: 225 20% 8%;
+    --sidebar-background: 220 18% 8%;
     --sidebar-foreground: 210 40% 96%;
-    --sidebar-primary: 190 95% 50%;
-    --sidebar-primary-foreground: 225 25% 6%;
-    --sidebar-accent: 225 15% 16%;
+    --sidebar-primary: 160 84% 39%;
+    --sidebar-primary-foreground: 220 20% 7%;
+    --sidebar-accent: 220 15% 16%;
     --sidebar-accent-foreground: 210 40% 96%;
-    --sidebar-border: 225 15% 18%;
-    --sidebar-ring: 190 95% 50%;
+    --sidebar-border: 220 15% 18%;
+    --sidebar-ring: 160 84% 39%;
   }
 }
 

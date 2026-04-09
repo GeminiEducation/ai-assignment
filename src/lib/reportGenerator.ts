@@ -8,81 +8,116 @@ export function generateReport(
 ) {
   const doc = new jsPDF();
   const w = doc.internal.pageSize.getWidth();
+  const margin = 20;
+  const contentW = w - margin * 2;
   let y = 20;
 
-  // Title
-  doc.setFontSize(22);
-  doc.setTextColor(0, 180, 216);
-  doc.text('AI Assignment Check Report', w / 2, y, { align: 'center' });
+  // ── Header bar ──
+  doc.setFillColor(16, 185, 129); // emerald
+  doc.rect(0, 0, w, 40, 'F');
+  doc.setFontSize(20);
+  doc.setTextColor(255, 255, 255);
+  doc.text('AI Assignment Check Report', w / 2, 26, { align: 'center' });
+  y = 50;
+
+  // ── Meta info ──
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  const metaItems = [
+    `Date: ${new Date().toLocaleString()}`,
+    userName ? `User: ${userName}` : '',
+    `File: ${fileName}`,
+  ].filter(Boolean);
+  doc.text(metaItems.join('   |   '), w / 2, y, { align: 'center' });
   y += 14;
 
-  doc.setFontSize(10);
-  doc.setTextColor(120, 120, 120);
-  doc.text(`Generated: ${new Date().toLocaleString()}`, w / 2, y, { align: 'center' });
-  y += 6;
-  if (userName) {
-    doc.text(`User: ${userName}`, w / 2, y, { align: 'center' });
-    y += 6;
-  }
-  doc.text(`File: ${fileName}`, w / 2, y, { align: 'center' });
-  y += 14;
+  // ── Divider ──
+  const drawDivider = () => {
+    doc.setDrawColor(220, 220, 220);
+    doc.line(margin, y, w - margin, y);
+    y += 8;
+  };
 
-  // Scores
-  doc.setDrawColor(200);
-  doc.line(14, y, w - 14, y);
-  y += 10;
+  // ── Score boxes ──
+  const boxW = (contentW - 15) / 4;
+  const scores = [
+    { label: 'AI Generated', value: `${result.aiPercentage}%`, color: [239, 68, 68] },
+    { label: 'Human Written', value: `${result.humanPercentage}%`, color: [16, 185, 129] },
+    { label: 'Internet Match', value: `${result.internetPercentage}%`, color: [245, 158, 11] },
+    { label: 'Confidence', value: `${result.confidence}%`, color: [99, 102, 241] },
+  ];
 
-  doc.setFontSize(14);
-  doc.setTextColor(40, 40, 40);
-  doc.text('Detection Scores', 14, y);
-  y += 8;
+  scores.forEach((s, i) => {
+    const x = margin + i * (boxW + 5);
+    doc.setFillColor(s.color[0], s.color[1], s.color[2]);
+    doc.roundedRect(x, y, boxW, 28, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.text(s.value, x + boxW / 2, y + 13, { align: 'center' });
+    doc.setFontSize(7);
+    doc.text(s.label, x + boxW / 2, y + 22, { align: 'center' });
+  });
+  y += 38;
 
-  doc.setFontSize(11);
-  doc.text(`AI Generated: ${result.aiPercentage}%`, 14, y);
-  y += 7;
-  doc.text(`Human Written: ${result.humanPercentage}%`, 14, y);
-  y += 7;
-  doc.text(`Confidence: ${result.confidence}%`, 14, y);
-  y += 12;
+  drawDivider();
 
-  // Summary
-  doc.setFontSize(14);
-  doc.text('Summary', 14, y);
-  y += 8;
-  doc.setFontSize(10);
-  const summaryLines = doc.splitTextToSize(result.summary, w - 28);
-  doc.text(summaryLines, 14, y);
+  // ── Section helper ──
+  const sectionTitle = (title: string) => {
+    if (y > 260) { doc.addPage(); y = 20; }
+    doc.setFontSize(13);
+    doc.setTextColor(16, 185, 129);
+    doc.text(title, margin, y);
+    y += 7;
+    doc.setTextColor(50, 50, 50);
+    doc.setFontSize(10);
+  };
+
+  // ── Summary ──
+  sectionTitle('Summary');
+  const summaryLines = doc.splitTextToSize(result.summary, contentW);
+  doc.text(summaryLines, margin, y);
   y += summaryLines.length * 5 + 8;
 
-  // Flagged
+  // ── Internet Content ──
+  if (result.internetPercentage > 0) {
+    sectionTitle('Internet Content');
+    const internetText = `Approximately ${result.internetPercentage}% of this assignment matches content found on the internet. This may indicate copied or closely paraphrased material from online sources.`;
+    const iLines = doc.splitTextToSize(internetText, contentW);
+    doc.text(iLines, margin, y);
+    y += iLines.length * 5 + 8;
+  }
+
+  // ── Flagged Sections ──
   if (result.flaggedSections.length > 0) {
-    doc.setFontSize(14);
-    doc.setTextColor(40, 40, 40);
-    doc.text('Flagged Sections', 14, y);
-    y += 8;
-    doc.setFontSize(10);
-    result.flaggedSections.forEach((s) => {
+    sectionTitle('Flagged Sections');
+    result.flaggedSections.forEach((s, i) => {
       if (y > 270) { doc.addPage(); y = 20; }
-      const lines = doc.splitTextToSize(`• ${s}`, w - 28);
-      doc.text(lines, 14, y);
+      const lines = doc.splitTextToSize(`${i + 1}. ${s}`, contentW - 5);
+      doc.text(lines, margin + 5, y);
       y += lines.length * 5 + 3;
     });
     y += 5;
   }
 
-  // Recommendations
+  // ── Recommendations ──
   if (result.recommendations.length > 0) {
-    if (y > 250) { doc.addPage(); y = 20; }
-    doc.setFontSize(14);
-    doc.text('Recommendations', 14, y);
-    y += 8;
-    doc.setFontSize(10);
-    result.recommendations.forEach((r) => {
+    sectionTitle('Recommendations');
+    result.recommendations.forEach((r, i) => {
       if (y > 270) { doc.addPage(); y = 20; }
-      const lines = doc.splitTextToSize(`✓ ${r}`, w - 28);
-      doc.text(lines, 14, y);
+      const lines = doc.splitTextToSize(`${i + 1}. ${r}`, contentW - 5);
+      doc.text(lines, margin + 5, y);
       y += lines.length * 5 + 3;
     });
+  }
+
+  // ── Footer ──
+  const pageCount = doc.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Page ${p} of ${pageCount}`, w / 2, 290, { align: 'center' });
+    doc.text('Generated by AI Assignment Checker', w / 2, 295, { align: 'center' });
   }
 
   doc.save(`AI_Check_Report_${fileName.replace(/\.[^.]+$/, '')}.pdf`);
