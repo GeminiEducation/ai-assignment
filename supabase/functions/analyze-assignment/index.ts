@@ -17,59 +17,44 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
     const truncated = text.slice(0, 12000);
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `You are an AI content detector and plagiarism checker. Analyze the provided text and determine:
+    const systemPrompt = `You are an AI content detector and plagiarism checker. Analyze the provided text and determine:
 1. What percentage is likely AI-generated vs human-written
 2. What percentage appears to match common internet content (plagiarism/copied from web sources)
 3. Which specific parts look AI-generated or copied
 4. Confidence in your analysis
 5. Actionable recommendations for the student
 
-Return results via the report_analysis function. The internetPercentage should estimate how much of the text appears to be directly copied or closely paraphrased from commonly available internet sources.`,
+You MUST respond with ONLY a valid JSON object in this exact format, no other text:
+{
+  "aiPercentage": <number 0-100>,
+  "humanPercentage": <number 0-100>,
+  "internetPercentage": <number 0-100>,
+  "confidence": <number 0-100>,
+  "flaggedSections": ["<section1>", "<section2>"],
+  "recommendations": ["<rec1>", "<rec2>"],
+  "summary": "<brief overall analysis>"
+}`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            { role: "user", parts: [{ text: `${systemPrompt}\n\nAnalyze this text:\n\n${truncated}` }] },
+          ],
+          generationConfig: {
+            responseMimeType: "application/json",
           },
-          { role: "user", content: truncated },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "report_analysis",
-              description: "Report AI content and internet plagiarism analysis results",
-              parameters: {
-                type: "object",
-                properties: {
-                  aiPercentage: { type: "number", description: "Percentage of text likely AI-generated (0-100)" },
-                  humanPercentage: { type: "number", description: "Percentage of text likely human-written (0-100)" },
-                  internetPercentage: { type: "number", description: "Percentage of text matching internet sources (0-100)" },
-                  confidence: { type: "number", description: "Confidence in the analysis (0-100)" },
-                  flaggedSections: { type: "array", items: { type: "string" }, description: "Sections that look AI-generated or copied" },
-                  recommendations: { type: "array", items: { type: "string" }, description: "Actionable recommendations" },
-                  summary: { type: "string", description: "Brief overall analysis summary" },
-                },
-                required: ["aiPercentage", "humanPercentage", "internetPercentage", "confidence", "flaggedSections", "recommendations", "summary"],
-                additionalProperties: false,
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "report_analysis" } },
-      }),
-    });
+        }),
+      }
+    );
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -77,27 +62,27 @@ Return results via the report_analysis function. The internetPercentage should e
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add funds." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
       const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      throw new Error("AI gateway error");
+      console.error("Gemini API error:", response.status, t);
+      throw new Error("Gemini API error");
     }
 
     const data = await response.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    
     let result;
-    if (toolCall) {
-      result = JSON.parse(toolCall.function.arguments);
-    } else {
-      const content = data.choices?.[0]?.message?.content || "";
+    try {
       result = JSON.parse(content);
+    } catch {
+      // Try to extract JSON from the response
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        result = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error("Could not parse AI response");
+      }
     }
 
-    // Ensure internetPercentage exists
     if (result.internetPercentage === undefined) {
       result.internetPercentage = 0;
     }
