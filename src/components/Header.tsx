@@ -1,6 +1,6 @@
 import { useAuth } from '@/hooks/useAuth';
 import { motion } from 'framer-motion';
-import { LogIn, LogOut, Sparkles } from 'lucide-react';
+import { LogIn, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const Header = () => {
@@ -14,9 +14,12 @@ const Header = () => {
       animate={{ y: 0, opacity: 1 }}
       className="glass-card sticky top-0 z-50 px-4 sm:px-8 py-3 flex items-center justify-between"
     >
-      <div className="flex items-center gap-2">
-        <Sparkles className="h-6 w-6 text-primary" />
-        <h1 className="font-display text-lg sm:text-xl font-bold gradient-text">AI Check</h1>
+      <div className="flex items-center gap-3">
+        <img src="/logo.png" alt="Stella College" className="h-10 w-10 object-contain" />
+        <div className="flex flex-col leading-tight">
+          <h1 className="font-display text-lg sm:text-xl font-bold gradient-text">Stella College</h1>
+          <span className="text-[10px] sm:text-xs text-muted-foreground tracking-wide">AI Assignment Checker</span>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
