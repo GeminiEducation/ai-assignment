@@ -52,6 +52,7 @@ const Index = () => {
           : '';
 
         toast.error(`${data.error || 'Analysis service is temporarily unavailable.'}${retryHint}`);
+        setResult(null);
         return;
       }
 
