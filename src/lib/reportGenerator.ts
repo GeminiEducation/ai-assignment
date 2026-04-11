@@ -13,11 +13,11 @@ export function generateReport(
   let y = 20;
 
   // ── Header bar ──
-  doc.setFillColor(16, 185, 129); // emerald
+  doc.setFillColor(100, 20, 40); // maroon
   doc.rect(0, 0, w, 40, 'F');
   doc.setFontSize(20);
   doc.setTextColor(255, 255, 255);
-  doc.text('AI Assignment Check Report', w / 2, 26, { align: 'center' });
+  doc.text('Stella College - AI Check Report', w / 2, 26, { align: 'center' });
   y = 50;
 
   // ── Meta info ──
