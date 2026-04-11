@@ -6,54 +6,54 @@
 
 @layer base {
   :root {
-    --background: 220 20% 7%;
-    --foreground: 210 40% 96%;
+    --background: 0 10% 6%;
+    --foreground: 40 30% 93%;
 
-    --card: 220 18% 11%;
-    --card-foreground: 210 40% 96%;
+    --card: 0 8% 10%;
+    --card-foreground: 40 30% 93%;
 
-    --popover: 220 18% 11%;
-    --popover-foreground: 210 40% 96%;
+    --popover: 0 8% 10%;
+    --popover-foreground: 40 30% 93%;
 
-    --primary: 160 84% 39%;
-    --primary-foreground: 220 20% 7%;
+    --primary: 345 60% 35%;
+    --primary-foreground: 40 30% 95%;
 
-    --secondary: 230 70% 60%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 38 72% 50%;
+    --secondary-foreground: 0 10% 6%;
 
-    --muted: 220 15% 16%;
-    --muted-foreground: 215 20% 55%;
+    --muted: 0 6% 15%;
+    --muted-foreground: 30 15% 55%;
 
-    --accent: 350 80% 55%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 38 72% 50%;
+    --accent-foreground: 0 10% 6%;
 
     --warning: 38 92% 50%;
-    --warning-foreground: 220 20% 7%;
+    --warning-foreground: 0 10% 6%;
 
     --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 40 30% 98%;
 
-    --border: 220 15% 18%;
-    --input: 220 15% 18%;
-    --ring: 160 84% 39%;
+    --border: 0 6% 17%;
+    --input: 0 6% 17%;
+    --ring: 345 60% 35%;
 
     --radius: 0.75rem;
 
-    --glass-bg: hsla(220, 18%, 12%, 0.6);
-    --glass-border: hsla(210, 40%, 96%, 0.08);
+    --glass-bg: hsla(0, 8%, 10%, 0.6);
+    --glass-border: hsla(40, 30%, 93%, 0.08);
     --glass-shadow: 0 8px 32px hsla(0, 0%, 0%, 0.3);
-    --glow-primary: 0 0 30px hsla(160, 84%, 39%, 0.3);
-    --glow-secondary: 0 0 30px hsla(230, 70%, 60%, 0.3);
-    --glow-accent: 0 0 30px hsla(350, 80%, 55%, 0.3);
+    --glow-primary: 0 0 30px hsla(345, 60%, 35%, 0.3);
+    --glow-secondary: 0 0 30px hsla(38, 72%, 50%, 0.3);
+    --glow-accent: 0 0 30px hsla(38, 72%, 50%, 0.3);
 
-    --sidebar-background: 220 18% 8%;
-    --sidebar-foreground: 210 40% 96%;
-    --sidebar-primary: 160 84% 39%;
-    --sidebar-primary-foreground: 220 20% 7%;
-    --sidebar-accent: 220 15% 16%;
-    --sidebar-accent-foreground: 210 40% 96%;
-    --sidebar-border: 220 15% 18%;
-    --sidebar-ring: 160 84% 39%;
+    --sidebar-background: 0 8% 7%;
+    --sidebar-foreground: 40 30% 93%;
+    --sidebar-primary: 345 60% 35%;
+    --sidebar-primary-foreground: 40 30% 95%;
+    --sidebar-accent: 0 6% 15%;
+    --sidebar-accent-foreground: 40 30% 93%;
+    --sidebar-border: 0 6% 17%;
+    --sidebar-ring: 345 60% 35%;
   }
 }
 
