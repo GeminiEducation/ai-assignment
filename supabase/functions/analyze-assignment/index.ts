@@ -5,7 +5,30 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function callGemini(prompt: string, apiKey: string, retries = 3, delay = 2000): Promise<any> {
+const jsonHeaders = {
+  ...corsHeaders,
+  "Content-Type": "application/json",
+};
+
+type GeminiResult =
+  | { ok: true; data: any }
+  | { ok: false; response: Response };
+
+const extractRetryDelaySeconds = (payload: any): number | null => {
+  const details = payload?.error?.details;
+  if (!Array.isArray(details)) return null;
+
+  const retryInfo = details.find(
+    (detail: Record<string, unknown>) => detail?.["@type"] === "type.googleapis.com/google.rpc.RetryInfo"
+  ) as { retryDelay?: string } | undefined;
+
+  if (!retryInfo?.retryDelay) return null;
+
+  const match = retryInfo.retryDelay.match(/^(\d+)/);
+  return match ? Number(match[1]) : null;
+};
+
+async function callGemini(prompt: string, apiKey: string): Promise<GeminiResult> {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
     {
@@ -18,21 +41,47 @@ async function callGemini(prompt: string, apiKey: string, retries = 3, delay = 2
     }
   );
 
-  if (response.status === 429 && retries > 0) {
-    const jitter = Math.random() * 1000;
-    const wait = delay + jitter;
-    console.warn(`Rate limited. Retrying in ${wait.toFixed(0)}ms (${retries} left)`);
-    await new Promise(r => setTimeout(r, wait));
-    return callGemini(prompt, apiKey, retries - 1, delay * 2);
+  if (response.ok) {
+    return { ok: true, data: await response.json() };
   }
 
-  if (!response.ok) {
-    const t = await response.text();
-    console.error("Gemini error:", response.status, t);
-    throw new Error(`Gemini API error (${response.status})`);
+  const errorText = await response.text();
+  console.error("Gemini error:", response.status, errorText);
+
+  let parsedError: any = null;
+  try {
+    parsedError = JSON.parse(errorText);
+  } catch {
+    parsedError = null;
   }
 
-  return response.json();
+  if (response.status === 429 || response.status >= 500) {
+    return {
+      ok: false,
+      response: new Response(
+        JSON.stringify({
+          error:
+            response.status === 429
+              ? "Gemini is temporarily unavailable because the current API quota is exhausted. Please try again later."
+              : "The analysis service is temporarily unavailable. Please try again later.",
+          fallback: true,
+          retryAfterSeconds: extractRetryDelaySeconds(parsedError),
+        }),
+        { status: 200, headers: jsonHeaders }
+      ),
+    };
+  }
+
+  return {
+    ok: false,
+    response: new Response(
+      JSON.stringify({
+        error: parsedError?.error?.message || `Gemini API error (${response.status})`,
+        fallback: false,
+      }),
+      { status: response.status, headers: jsonHeaders }
+    ),
+  };
 }
 
 serve(async (req) => {
@@ -43,7 +92,7 @@ serve(async (req) => {
     if (!text || typeof text !== "string") {
       return new Response(JSON.stringify({ error: "Missing text" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: jsonHeaders,
       });
     }
 
@@ -51,7 +100,6 @@ serve(async (req) => {
     if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
     const truncated = text.slice(0, 12000);
-
     const prompt = `You are an AI content detector and plagiarism checker. Analyze the provided text and determine:
 1. What percentage is likely AI-generated vs human-written
 2. What percentage appears to match common internet content (plagiarism/copied from web sources)
@@ -74,31 +122,55 @@ Analyze this text:
 
 ${truncated}`;
 
-    const data = await callGemini(prompt, GEMINI_API_KEY);
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const geminiResult = await callGemini(prompt, GEMINI_API_KEY);
+    if (!geminiResult.ok) {
+      return geminiResult.response;
+    }
+
+    const content = geminiResult.data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    if (!content) {
+      return new Response(
+        JSON.stringify({
+          error: "The analysis service returned an empty response. Please try again later.",
+          fallback: true,
+        }),
+        { status: 200, headers: jsonHeaders }
+      );
+    }
 
     let result;
     try {
       result = JSON.parse(content);
     } catch {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        result = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error("Could not parse AI response");
+      if (!jsonMatch) {
+        return new Response(
+          JSON.stringify({
+            error: "The analysis service returned an invalid response. Please try again later.",
+            fallback: true,
+          }),
+          { status: 200, headers: jsonHeaders }
+        );
       }
+
+      result = JSON.parse(jsonMatch[0]);
     }
 
-    if (result.internetPercentage === undefined) result.internetPercentage = 0;
+    if (result.internetPercentage === undefined) {
+      result.internetPercentage = 0;
+    }
 
     return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: jsonHeaders,
     });
   } catch (e) {
     console.error("analyze-assignment error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        error: "The analysis service is temporarily unavailable. Please try again later.",
+        fallback: true,
+      }),
+      { status: 200, headers: jsonHeaders }
+    );
   }
 });

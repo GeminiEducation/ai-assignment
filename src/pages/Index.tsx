@@ -38,7 +38,24 @@ const Index = () => {
         body: { text },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw new Error(error.message || 'Analysis failed. Please try again.');
+      }
+
+      if (!data) {
+        throw new Error('No response from the analysis service.');
+      }
+
+      if (data.fallback) {
+        const retryHint = typeof data.retryAfterSeconds === 'number'
+          ? ` Please wait about ${Math.ceil(data.retryAfterSeconds)} seconds and try again.`
+          : '';
+
+        toast.error(`${data.error || 'Analysis service is temporarily unavailable.'}${retryHint}`);
+        setResult(null);
+        return;
+      }
+
       if (data.error) throw new Error(data.error);
 
       setResult(data as AnalysisResult);
