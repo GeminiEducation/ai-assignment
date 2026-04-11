@@ -5,6 +5,36 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function callGemini(prompt: string, apiKey: string, retries = 3, delay = 2000): Promise<any> {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json" },
+      }),
+    }
+  );
+
+  if (response.status === 429 && retries > 0) {
+    const jitter = Math.random() * 1000;
+    const wait = delay + jitter;
+    console.warn(`Rate limited. Retrying in ${wait.toFixed(0)}ms (${retries} left)`);
+    await new Promise(r => setTimeout(r, wait));
+    return callGemini(prompt, apiKey, retries - 1, delay * 2);
+  }
+
+  if (!response.ok) {
+    const t = await response.text();
+    console.error("Gemini error:", response.status, t);
+    throw new Error(`Gemini API error (${response.status})`);
+  }
+
+  return response.json();
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -22,14 +52,14 @@ serve(async (req) => {
 
     const truncated = text.slice(0, 12000);
 
-    const systemPrompt = `You are an AI content detector and plagiarism checker. Analyze the provided text and determine:
+    const prompt = `You are an AI content detector and plagiarism checker. Analyze the provided text and determine:
 1. What percentage is likely AI-generated vs human-written
 2. What percentage appears to match common internet content (plagiarism/copied from web sources)
 3. Which specific parts look AI-generated or copied
 4. Confidence in your analysis
 5. Actionable recommendations for the student
 
-You MUST respond with ONLY a valid JSON object in this exact format, no other text:
+Respond with ONLY a valid JSON object in this exact format:
 {
   "aiPercentage": <number 0-100>,
   "humanPercentage": <number 0-100>,
@@ -38,43 +68,19 @@ You MUST respond with ONLY a valid JSON object in this exact format, no other te
   "flaggedSections": ["<section1>", "<section2>"],
   "recommendations": ["<rec1>", "<rec2>"],
   "summary": "<brief overall analysis>"
-}`;
+}
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            { role: "user", parts: [{ text: `${systemPrompt}\n\nAnalyze this text:\n\n${truncated}` }] },
-          ],
-          generationConfig: {
-            responseMimeType: "application/json",
-          },
-        }),
-      }
-    );
+Analyze this text:
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again later." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const t = await response.text();
-      console.error("Gemini API error:", response.status, t);
-      throw new Error("Gemini API error");
-    }
+${truncated}`;
 
-    const data = await response.json();
+    const data = await callGemini(prompt, GEMINI_API_KEY);
     const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    
+
     let result;
     try {
       result = JSON.parse(content);
     } catch {
-      // Try to extract JSON from the response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         result = JSON.parse(jsonMatch[0]);
@@ -83,9 +89,7 @@ You MUST respond with ONLY a valid JSON object in this exact format, no other te
       }
     }
 
-    if (result.internetPercentage === undefined) {
-      result.internetPercentage = 0;
-    }
+    if (result.internetPercentage === undefined) result.internetPercentage = 0;
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
