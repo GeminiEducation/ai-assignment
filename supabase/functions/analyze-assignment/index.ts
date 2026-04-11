@@ -5,102 +5,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const jsonHeaders = {
-  ...corsHeaders,
-  "Content-Type": "application/json",
-};
+const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
-type GeminiResult =
-  | { ok: true; data: any }
-  | { ok: false; response: Response };
-
-const extractRetryDelaySeconds = (payload: any): number | null => {
-  const details = payload?.error?.details;
-  if (!Array.isArray(details)) return null;
-
-  const retryInfo = details.find(
-    (detail: Record<string, unknown>) => detail?.["@type"] === "type.googleapis.com/google.rpc.RetryInfo"
-  ) as { retryDelay?: string } | undefined;
-
-  if (!retryInfo?.retryDelay) return null;
-
-  const match = retryInfo.retryDelay.match(/^(\d+)/);
-  return match ? Number(match[1]) : null;
-};
-
-async function callGemini(prompt: string, apiKey: string): Promise<GeminiResult> {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" },
-      }),
-    }
-  );
-
-  if (response.ok) {
-    return { ok: true, data: await response.json() };
-  }
-
-  const errorText = await response.text();
-  console.error("Gemini error:", response.status, errorText);
-
-  let parsedError: any = null;
-  try {
-    parsedError = JSON.parse(errorText);
-  } catch {
-    parsedError = null;
-  }
-
-  if (response.status === 429 || response.status >= 500) {
-    return {
-      ok: false,
-      response: new Response(
-        JSON.stringify({
-          error:
-            response.status === 429
-              ? "Gemini is temporarily unavailable because the current API quota is exhausted. Please try again later."
-              : "The analysis service is temporarily unavailable. Please try again later.",
-          fallback: true,
-          retryAfterSeconds: extractRetryDelaySeconds(parsedError),
-        }),
-        { status: 200, headers: jsonHeaders }
-      ),
-    };
-  }
-
-  return {
-    ok: false,
-    response: new Response(
-      JSON.stringify({
-        error: parsedError?.error?.message || `Gemini API error (${response.status})`,
-        fallback: false,
-      }),
-      { status: response.status, headers: jsonHeaders }
-    ),
-  };
-}
-
-serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-
-  try {
-    const { text } = await req.json();
-    if (!text || typeof text !== "string") {
-      return new Response(JSON.stringify({ error: "Missing text" }), {
-        status: 400,
-        headers: jsonHeaders,
-      });
-    }
-
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
-
-    const truncated = text.slice(0, 12000);
-    const prompt = `You are an AI content detector and plagiarism checker. Analyze the provided text and determine:
+const SYSTEM_PROMPT = `You are an AI content detector and plagiarism checker. Analyze the provided text and determine:
 1. What percentage is likely AI-generated vs human-written
 2. What percentage appears to match common internet content (plagiarism/copied from web sources)
 3. Which specific parts look AI-generated or copied
@@ -116,60 +23,121 @@ Respond with ONLY a valid JSON object in this exact format:
   "flaggedSections": ["<section1>", "<section2>"],
   "recommendations": ["<rec1>", "<rec2>"],
   "summary": "<brief overall analysis>"
+}`;
+
+async function callGemini(text: string, apiKey: string): Promise<{ ok: true; data: any } | { ok: false }> {
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: `${SYSTEM_PROMPT}\n\nAnalyze this text:\n\n${text}` }] }],
+          generationConfig: { responseMimeType: "application/json" },
+        }),
+      }
+    );
+    if (!response.ok) {
+      const t = await response.text();
+      console.error("Gemini error:", response.status, t);
+      return { ok: false };
+    }
+    const data = await response.json();
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!content) return { ok: false };
+    return { ok: true, data: JSON.parse(content) };
+  } catch (e) {
+    console.error("Gemini call failed:", e);
+    return { ok: false };
+  }
 }
 
-Analyze this text:
+async function callGroq(text: string, apiKey: string): Promise<{ ok: true; data: any } | { ok: false }> {
+  try {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: `Analyze this text:\n\n${text}` },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      console.error("Groq error:", response.status, t);
+      return { ok: false };
+    }
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) return { ok: false };
+    return { ok: true, data: JSON.parse(content) };
+  } catch (e) {
+    console.error("Groq call failed:", e);
+    return { ok: false };
+  }
+}
 
-${truncated}`;
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-    const geminiResult = await callGemini(prompt, GEMINI_API_KEY);
-    if (!geminiResult.ok) {
-      return geminiResult.response;
+  try {
+    const { text } = await req.json();
+    if (!text || typeof text !== "string") {
+      return new Response(JSON.stringify({ error: "Missing text" }), { status: 400, headers: jsonHeaders });
     }
 
-    const content = geminiResult.data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    if (!content) {
+    const truncated = text.slice(0, 12000);
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+
+    let result: any = null;
+    let provider = "none";
+
+    // Try Gemini first
+    if (GEMINI_API_KEY) {
+      const gemini = await callGemini(truncated, GEMINI_API_KEY);
+      if (gemini.ok) {
+        result = gemini.data;
+        provider = "gemini";
+      } else {
+        console.warn("Gemini failed, falling back to Groq...");
+      }
+    }
+
+    // Fallback to Groq
+    if (!result && GROQ_API_KEY) {
+      const groq = await callGroq(truncated, GROQ_API_KEY);
+      if (groq.ok) {
+        result = groq.data;
+        provider = "groq";
+      } else {
+        console.error("Groq also failed.");
+      }
+    }
+
+    if (!result) {
       return new Response(
-        JSON.stringify({
-          error: "The analysis service returned an empty response. Please try again later.",
-          fallback: true,
-        }),
+        JSON.stringify({ error: "Both AI providers are currently unavailable. Please try again later.", fallback: true }),
         { status: 200, headers: jsonHeaders }
       );
     }
 
-    let result;
-    try {
-      result = JSON.parse(content);
-    } catch {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return new Response(
-          JSON.stringify({
-            error: "The analysis service returned an invalid response. Please try again later.",
-            fallback: true,
-          }),
-          { status: 200, headers: jsonHeaders }
-        );
-      }
+    if (result.internetPercentage === undefined) result.internetPercentage = 0;
+    console.log(`Analysis completed via ${provider}`);
 
-      result = JSON.parse(jsonMatch[0]);
-    }
-
-    if (result.internetPercentage === undefined) {
-      result.internetPercentage = 0;
-    }
-
-    return new Response(JSON.stringify(result), {
-      headers: jsonHeaders,
-    });
+    return new Response(JSON.stringify(result), { headers: jsonHeaders });
   } catch (e) {
     console.error("analyze-assignment error:", e);
     return new Response(
-      JSON.stringify({
-        error: "The analysis service is temporarily unavailable. Please try again later.",
-        fallback: true,
-      }),
+      JSON.stringify({ error: "Analysis service temporarily unavailable. Please try again later.", fallback: true }),
       { status: 200, headers: jsonHeaders }
     );
   }
