@@ -7,12 +7,17 @@ const corsHeaders = {
 
 const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
-const SYSTEM_PROMPT = `You are an AI content detector and plagiarism checker. Analyze the provided text and determine:
-1. What percentage is likely AI-generated vs human-written
-2. What percentage appears to match common internet content (plagiarism/copied from web sources)
-3. Which specific parts look AI-generated or copied
-4. Confidence in your analysis
-5. Actionable recommendations for the student
+const SYSTEM_PROMPT = `You are an AI content detector, plagiarism checker, AND an academic answer evaluator for Stella College.
+
+The submitted text may be a plain essay OR a question-and-answer style assignment (where the student writes questions followed by their answers, or numbered Q&A pairs). Detect the format automatically.
+
+Analyze the text and determine:
+1. What percentage is likely AI-generated vs human-written.
+2. What percentage appears to match common internet content (plagiarism/copied from web sources).
+3. Which specific parts look AI-generated or copied.
+4. Confidence in your analysis.
+5. If the assignment is in Q&A format: evaluate each answer for correctness, completeness, and relevance to its question. List each question with a verdict (Correct / Partially Correct / Incorrect), a brief explanation, and the ideal/expected answer when the student is wrong or incomplete.
+6. Actionable recommendations for the student.
 
 Respond with ONLY a valid JSON object in this exact format:
 {
@@ -22,8 +27,20 @@ Respond with ONLY a valid JSON object in this exact format:
   "confidence": <number 0-100>,
   "flaggedSections": ["<section1>", "<section2>"],
   "recommendations": ["<rec1>", "<rec2>"],
-  "summary": "<brief overall analysis>"
-}`;
+  "summary": "<brief overall analysis, mention if Q&A format was detected and overall answer quality>",
+  "isQnA": <true|false>,
+  "questionsAnalysis": [
+    {
+      "question": "<the question text>",
+      "studentAnswer": "<short excerpt of the student's answer>",
+      "verdict": "Correct" | "Partially Correct" | "Incorrect",
+      "explanation": "<why it is correct or what is missing/wrong>",
+      "correctAnswer": "<the ideal answer; empty string if verdict is Correct>"
+    }
+  ]
+}
+
+If the text is NOT in Q&A format, set "isQnA": false and "questionsAnalysis": [].`;
 
 async function callGemini(text: string, apiKey: string): Promise<{ ok: true; data: any } | { ok: false }> {
   try {

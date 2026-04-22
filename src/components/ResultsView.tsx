@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Download, AlertTriangle, CheckCircle, Info, BarChart3, Globe } from 'lucide-react';
+import { Download, AlertTriangle, CheckCircle, Info, BarChart3, Globe, HelpCircle, XCircle } from 'lucide-react';
 import CircleProgress from './CircleProgress';
 import { Button } from '@/components/ui/button';
 
@@ -11,6 +11,14 @@ export interface AnalysisResult {
   flaggedSections: string[];
   recommendations: string[];
   summary: string;
+  isQnA?: boolean;
+  questionsAnalysis?: {
+    question: string;
+    studentAnswer: string;
+    verdict: 'Correct' | 'Partially Correct' | 'Incorrect';
+    explanation: string;
+    correctAnswer: string;
+  }[];
 }
 
 interface ResultsViewProps {
