@@ -6,54 +6,54 @@
 
 @layer base {
   :root {
-    --background: 0 10% 6%;
-    --foreground: 40 30% 93%;
+    --background: 0 0% 100%;
+    --foreground: 345 30% 12%;
 
-    --card: 0 8% 10%;
-    --card-foreground: 40 30% 93%;
+    --card: 0 0% 100%;
+    --card-foreground: 345 30% 12%;
 
-    --popover: 0 8% 10%;
-    --popover-foreground: 40 30% 93%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 345 30% 12%;
 
-    --primary: 345 60% 35%;
-    --primary-foreground: 40 30% 95%;
+    --primary: 345 65% 32%;
+    --primary-foreground: 40 40% 98%;
 
-    --secondary: 38 72% 50%;
-    --secondary-foreground: 0 10% 6%;
+    --secondary: 38 80% 48%;
+    --secondary-foreground: 345 30% 12%;
 
-    --muted: 0 6% 15%;
-    --muted-foreground: 30 15% 55%;
+    --muted: 40 25% 95%;
+    --muted-foreground: 345 10% 40%;
 
-    --accent: 38 72% 50%;
-    --accent-foreground: 0 10% 6%;
+    --accent: 38 80% 48%;
+    --accent-foreground: 345 30% 12%;
 
     --warning: 38 92% 50%;
-    --warning-foreground: 0 10% 6%;
+    --warning-foreground: 345 30% 12%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 40 30% 98%;
+    --destructive: 0 75% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 0 6% 17%;
-    --input: 0 6% 17%;
-    --ring: 345 60% 35%;
+    --border: 345 20% 90%;
+    --input: 345 20% 90%;
+    --ring: 345 65% 32%;
 
     --radius: 0.75rem;
 
-    --glass-bg: hsla(0, 8%, 10%, 0.6);
-    --glass-border: hsla(40, 30%, 93%, 0.08);
-    --glass-shadow: 0 8px 32px hsla(0, 0%, 0%, 0.3);
-    --glow-primary: 0 0 30px hsla(345, 60%, 35%, 0.3);
-    --glow-secondary: 0 0 30px hsla(38, 72%, 50%, 0.3);
-    --glow-accent: 0 0 30px hsla(38, 72%, 50%, 0.3);
+    --glass-bg: hsla(0, 0%, 100%, 0.75);
+    --glass-border: hsla(345, 30%, 20%, 0.08);
+    --glass-shadow: 0 8px 32px hsla(345, 30%, 20%, 0.08);
+    --glow-primary: 0 0 30px hsla(345, 65%, 32%, 0.18);
+    --glow-secondary: 0 0 30px hsla(38, 80%, 48%, 0.22);
+    --glow-accent: 0 0 30px hsla(38, 80%, 48%, 0.22);
 
-    --sidebar-background: 0 8% 7%;
-    --sidebar-foreground: 40 30% 93%;
-    --sidebar-primary: 345 60% 35%;
-    --sidebar-primary-foreground: 40 30% 95%;
-    --sidebar-accent: 0 6% 15%;
-    --sidebar-accent-foreground: 40 30% 93%;
-    --sidebar-border: 0 6% 17%;
-    --sidebar-ring: 345 60% 35%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 345 30% 12%;
+    --sidebar-primary: 345 65% 32%;
+    --sidebar-primary-foreground: 40 40% 98%;
+    --sidebar-accent: 40 25% 95%;
+    --sidebar-accent-foreground: 345 30% 12%;
+    --sidebar-border: 345 20% 90%;
+    --sidebar-ring: 345 65% 32%;
   }
 }
 
