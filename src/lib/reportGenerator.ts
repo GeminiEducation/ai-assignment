@@ -110,6 +110,42 @@ export function generateReport(
     });
   }
 
+  // ── Q&A Evaluation ──
+  if (result.isQnA && result.questionsAnalysis && result.questionsAnalysis.length > 0) {
+    if (y > 240) { doc.addPage(); y = 20; }
+    sectionTitle('Question & Answer Evaluation');
+    result.questionsAnalysis.forEach((q, i) => {
+      if (y > 250) { doc.addPage(); y = 20; }
+      doc.setFontSize(10);
+      doc.setTextColor(100, 20, 40);
+      const qLines = doc.splitTextToSize(`Q${i + 1}. ${q.question}  [${q.verdict}]`, contentW);
+      doc.text(qLines, margin, y);
+      y += qLines.length * 5 + 2;
+
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
+      if (q.studentAnswer) {
+        const sLines = doc.splitTextToSize(`Student: ${q.studentAnswer}`, contentW - 5);
+        doc.text(sLines, margin + 5, y);
+        y += sLines.length * 4.5 + 1;
+      }
+      if (q.explanation) {
+        const eLines = doc.splitTextToSize(`Note: ${q.explanation}`, contentW - 5);
+        doc.text(eLines, margin + 5, y);
+        y += eLines.length * 4.5 + 1;
+      }
+      if (q.verdict !== 'Correct' && q.correctAnswer) {
+        doc.setTextColor(20, 120, 60);
+        const cLines = doc.splitTextToSize(`Correct: ${q.correctAnswer}`, contentW - 5);
+        doc.text(cLines, margin + 5, y);
+        y += cLines.length * 4.5 + 4;
+      } else {
+        y += 3;
+      }
+      if (y > 270) { doc.addPage(); y = 20; }
+    });
+  }
+
   // ── Footer ──
   const pageCount = doc.getNumberOfPages();
   for (let p = 1; p <= pageCount; p++) {

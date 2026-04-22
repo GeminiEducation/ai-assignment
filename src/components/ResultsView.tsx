@@ -95,6 +95,55 @@ const ResultsView = ({ result, fileName, onDownload, onReset }: ResultsViewProps
         </motion.div>
       )}
 
+      {/* Q&A Analysis */}
+      {result.isQnA && result.questionsAnalysis && result.questionsAnalysis.length > 0 && (
+        <motion.div variants={item} className="glass-card rounded-2xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <HelpCircle className="h-5 w-5 text-primary" />
+            <h3 className="font-display font-semibold text-foreground">Question & Answer Evaluation</h3>
+          </div>
+          <div className="space-y-4">
+            {result.questionsAnalysis.map((q, i) => {
+              const isCorrect = q.verdict === 'Correct';
+              const isPartial = q.verdict === 'Partially Correct';
+              const VerdictIcon = isCorrect ? CheckCircle : isPartial ? AlertTriangle : XCircle;
+              const verdictColor = isCorrect
+                ? 'text-primary border-primary/40'
+                : isPartial
+                ? 'text-warning border-warning/40'
+                : 'text-destructive border-destructive/40';
+              return (
+                <div key={i} className={`rounded-xl border-l-4 bg-muted/40 p-4 ${verdictColor}`}>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <p className="font-medium text-foreground text-sm">
+                      Q{i + 1}. {q.question}
+                    </p>
+                    <span className={`flex items-center gap-1 text-xs font-semibold shrink-0 ${verdictColor.split(' ')[0]}`}>
+                      <VerdictIcon className="h-3.5 w-3.5" />
+                      {q.verdict}
+                    </span>
+                  </div>
+                  {q.studentAnswer && (
+                    <p className="text-xs text-muted-foreground mb-2">
+                      <span className="font-medium">Student answer:</span> {q.studentAnswer}
+                    </p>
+                  )}
+                  {q.explanation && (
+                    <p className="text-xs text-muted-foreground mb-2">{q.explanation}</p>
+                  )}
+                  {!isCorrect && q.correctAnswer && (
+                    <p className="text-xs text-foreground bg-primary/5 rounded-md p-2 border border-primary/20">
+                      <span className="font-semibold text-primary">Correct answer: </span>
+                      {q.correctAnswer}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
       {/* Recommendations */}
       {result.recommendations.length > 0 && (
         <motion.div variants={item} className="glass-card rounded-2xl p-6">
