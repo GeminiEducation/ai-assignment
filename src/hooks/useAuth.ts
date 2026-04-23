@@ -22,11 +22,14 @@ export const useAuth = () => {
   }, []);
 
   const signInWithGoogle = async () => {
-    await lovable.auth.signInWithOAuth('google', {
-      redirect_uri: window.location.origin,
-    });
-  };
-
+  await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${window.location.origin}`,
+    },
+  });
+};
+console.log(window.location.origin)
   const signOut = async () => {
     await supabase.auth.signOut();
   };

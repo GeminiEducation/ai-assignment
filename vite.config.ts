@@ -19,4 +19,32 @@ export default defineConfig(({ mode }) => ({
     },
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
   },
+    // ✅ ADD THIS BLOCK
+  build: {
+    chunkSizeWarningLimit: 1000, // optional (avoid warning spam)
+
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // split heavy libs
+          pdf: ["pdfjs-dist"],
+          canvas: ["html2canvas"],
+
+          // split UI libs
+          radix: [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-toast"
+          ],
+
+          // split vendor libs
+          vendor: ["react", "react-dom"],
+
+          // supabase separate
+          supabase: ["@supabase/supabase-js"]
+        },
+      },
+    },
+  },
 }));
+

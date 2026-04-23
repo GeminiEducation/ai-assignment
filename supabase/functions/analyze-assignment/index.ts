@@ -1,12 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
+// ─── CORS Headers ────────────────────────────────────────────────────────────
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
+// ─── System Prompt ────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are an AI content detector, plagiarism checker, AND an academic answer evaluator for Stella College.
 
 The submitted text may be a plain essay OR a question-and-answer style assignment (where the student writes questions followed by their answers, or numbered Q&A pairs). Detect the format automatically.
@@ -42,7 +46,11 @@ Respond with ONLY a valid JSON object in this exact format:
 
 If the text is NOT in Q&A format, set "isQnA": false and "questionsAnalysis": [].`;
 
-async function callGemini(text: string, apiKey: string): Promise<{ ok: true; data: any } | { ok: false }> {
+// ─── Gemini Provider ──────────────────────────────────────────────────────────
+async function callGemini(
+  text: string,
+  apiKey: string
+): Promise<{ ok: true; data: unknown } | { ok: false }> {
   try {
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -50,19 +58,27 @@ async function callGemini(text: string, apiKey: string): Promise<{ ok: true; dat
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: `${SYSTEM_PROMPT}\n\nAnalyze this text:\n\n${text}` }] }],
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: `${SYSTEM_PROMPT}\n\nAnalyze this text:\n\n${text}` }],
+            },
+          ],
           generationConfig: { responseMimeType: "application/json" },
         }),
       }
     );
+
     if (!response.ok) {
       const t = await response.text();
       console.error("Gemini error:", response.status, t);
       return { ok: false };
     }
+
     const data = await response.json();
     const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!content) return { ok: false };
+
     return { ok: true, data: JSON.parse(content) };
   } catch (e) {
     console.error("Gemini call failed:", e);
@@ -70,7 +86,11 @@ async function callGemini(text: string, apiKey: string): Promise<{ ok: true; dat
   }
 }
 
-async function callGroq(text: string, apiKey: string): Promise<{ ok: true; data: any } | { ok: false }> {
+// ─── Groq Provider ────────────────────────────────────────────────────────────
+async function callGroq(
+  text: string,
+  apiKey: string
+): Promise<{ ok: true; data: unknown } | { ok: false }> {
   try {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -87,14 +107,17 @@ async function callGroq(text: string, apiKey: string): Promise<{ ok: true; data:
         response_format: { type: "json_object" },
       }),
     });
+
     if (!response.ok) {
       const t = await response.text();
       console.error("Groq error:", response.status, t);
       return { ok: false };
     }
+
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
     if (!content) return { ok: false };
+
     return { ok: true, data: JSON.parse(content) };
   } catch (e) {
     console.error("Groq call failed:", e);
@@ -102,59 +125,95 @@ async function callGroq(text: string, apiKey: string): Promise<{ ok: true; data:
   }
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+// ─── Request Handler ──────────────────────────────────────────────────────────
+serve(async (req: Request) => {
+  // Handle CORS preflight
+ if (req.method === "OPTIONS") {
+  return new Response("ok", {
+    status: 200,
+    headers: corsHeaders,
+  });
+}
 
   try {
-    const { text } = await req.json();
+    const body = await req.json();
+    const { text } = body;
+
     if (!text || typeof text !== "string") {
-      return new Response(JSON.stringify({ error: "Missing text" }), { status: 400, headers: jsonHeaders });
+      return new Response(
+        JSON.stringify({ error: "Missing or invalid 'text' field in request body." }),
+        { status: 400, headers: jsonHeaders }
+      );
     }
 
+    // Truncate to avoid token limits
     const truncated = text.slice(0, 12000);
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const GROQ_API_KEY   = Deno.env.get("GROQ_API_KEY");
+
+    // Validate that at least one key is configured
+    if (!GEMINI_API_KEY && !GROQ_API_KEY) {
+      console.error("No AI provider API keys found in environment.");
+      return new Response(
+        JSON.stringify({
+          error: "Server misconfiguration: no AI provider keys set.",
+          fallback: true,
+        }),
+        { status: 500, headers: jsonHeaders }
+      );
+    }
+
+    // deno-lint-ignore no-explicit-any
     let result: any = null;
     let provider = "none";
 
-    // Try Gemini first
+    // 1️⃣  Try Gemini first
     if (GEMINI_API_KEY) {
       const gemini = await callGemini(truncated, GEMINI_API_KEY);
       if (gemini.ok) {
-        result = gemini.data;
+        result   = gemini.data;
         provider = "gemini";
       } else {
-        console.warn("Gemini failed, falling back to Groq...");
+        console.warn("Gemini failed — falling back to Groq...");
       }
     }
 
-    // Fallback to Groq
+    // 2️⃣  Fallback to Groq
     if (!result && GROQ_API_KEY) {
       const groq = await callGroq(truncated, GROQ_API_KEY);
       if (groq.ok) {
-        result = groq.data;
+        result   = groq.data;
         provider = "groq";
       } else {
         console.error("Groq also failed.");
       }
     }
 
+    // Both providers failed
     if (!result) {
       return new Response(
-        JSON.stringify({ error: "Both AI providers are currently unavailable. Please try again later.", fallback: true }),
+        JSON.stringify({
+          error: "Both AI providers are currently unavailable. Please try again later.",
+          fallback: true,
+        }),
         { status: 200, headers: jsonHeaders }
       );
     }
 
+    // Ensure optional field is always present
     if (result.internetPercentage === undefined) result.internetPercentage = 0;
-    console.log(`Analysis completed via ${provider}`);
 
+    console.log(`✅ Analysis completed via ${provider}`);
     return new Response(JSON.stringify(result), { headers: jsonHeaders });
+
   } catch (e) {
     console.error("analyze-assignment error:", e);
     return new Response(
-      JSON.stringify({ error: "Analysis service temporarily unavailable. Please try again later.", fallback: true }),
+      JSON.stringify({
+        error: "Analysis service temporarily unavailable. Please try again later.",
+        fallback: true,
+      }),
       { status: 200, headers: jsonHeaders }
     );
   }
