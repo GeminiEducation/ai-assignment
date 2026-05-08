@@ -9,7 +9,8 @@ import { extractText } from '@/lib/fileParser';
 import { generateReport } from '@/lib/reportGenerator';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-
+// import { getFileHash } from '@/functions/analyze-assignment/utils/hashFile'; // ← ADD THIS IMPORT
+import {getFileHash} from '../../supabase/functions/analyze-assignment/utils/hashFile'
 const Index = () => {
   const { user } = useAuth();
   const [analyzing, setAnalyzing] = useState(false);
@@ -27,6 +28,7 @@ const Index = () => {
     setFileName(file.name);
 
     try {
+      // Extract text from PDF
       const text = await extractText(file);
       if (!text.trim()) {
         toast.error('Could not extract text from file.');
@@ -34,8 +36,17 @@ const Index = () => {
         return;
       }
 
+      // ── Compute file hash in the browser ──────────────────────────────
+      // This is the key fix: hash must be computed here and sent to the
+      // edge function so it can cache results by file identity.
+      const fileHash = await getFileHash(file); // ← ADD THIS
+
       const { data, error } = await supabase.functions.invoke('analyze-assignment', {
-        body: { text },
+        body: {
+          fileHash,        // ← ADD THIS (was missing — caused the 400)
+          fileName: file.name, // ← ADD THIS
+          text,
+        },
       });
 
       if (error) {
@@ -50,7 +61,6 @@ const Index = () => {
         const retryHint = typeof data.retryAfterSeconds === 'number'
           ? ` Please wait about ${Math.ceil(data.retryAfterSeconds)} seconds and try again.`
           : '';
-
         toast.error(`${data.error || 'Analysis service is temporarily unavailable.'}${retryHint}`);
         setResult(null);
         return;
@@ -59,7 +69,14 @@ const Index = () => {
       if (data.error) throw new Error(data.error);
 
       setResult(data as AnalysisResult);
-      toast.success('Analysis complete!');
+
+      // Show cache hint if result came from cache
+      if (data.cached) {
+        toast.success('Analysis complete! (result from cache)');
+      } else {
+        toast.success('Analysis complete!');
+      }
+
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || 'Analysis failed. Please try again.');
