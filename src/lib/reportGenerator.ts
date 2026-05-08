@@ -5,7 +5,7 @@ import type { AnalysisResult } from "@/components/ResultsView";
 // COLORS
 // ─────────────────────────────────────────────────────────────
 
-const MAROON = [105, 18, 42] as const;
+const MAROON = [0, 82, 155] as const;
 const GOLD = [185, 145, 75] as const;
 const CREAM = [252, 248, 240] as const;
 const DARK = [35, 35, 35] as const;
@@ -65,14 +65,7 @@ export function generateReport(
   doc.setFontSize(10);
   doc.setTextColor(235, 215, 190);
 
-  doc.text(
-    "Academic Integrity & Assessment Division",
-    W / 2,
-    31,
-    {
-      align: "center",
-    }
-  );
+  
 
   // Decorative line
   doc.setDrawColor(...GOLD);
@@ -666,7 +659,7 @@ function drawFooter(
   );
 
   doc.text(
-    "integrity@stellacollege.edu.au",
+    "https://www.stellacollege.edu.au/",
     W - MX,
     H - 8,
     {
