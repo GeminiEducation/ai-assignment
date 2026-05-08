@@ -1,12 +1,8 @@
-// ──────────────────────────────────────────────────────────────────────────────
-// analyze-pdf/index.ts (TypeScript)
-// ──────────────────────────────────────────────────────────────────────────────
+// supabase/functions/analyze-assignment/index.ts
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getFileHash } from "./utils/hashFile.ts";
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
 interface AnalysisResult {
   aiPercentage: number;
   humanPercentage: number;
@@ -19,7 +15,6 @@ interface AnalysisResult {
   questionsAnalysis: unknown[];
 }
 
-// ─── CORS Headers ─────────────────────────────────────────────────────────────
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -29,16 +24,13 @@ const corsHeaders = {
 
 const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
-// ─── AI System Prompt ──────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are an AI content detector... (same as before)`;
 
-// ─── Supabase Client ───────────────────────────────────────────────────────────
-const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
 
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// ─── Gemini Provider ───────────────────────────────────────────────────────────
 async function callGemini(
   text: string,
   apiKey: string
@@ -60,21 +52,16 @@ async function callGemini(
         }),
       }
     );
-
     if (!response.ok) return { ok: false };
-
     const data = await response.json();
     const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
     if (!content) return { ok: false };
-
     return { ok: true, data: JSON.parse(content) };
   } catch {
     return { ok: false };
   }
 }
 
-// ─── Groq Provider ─────────────────────────────────────────────────────────────
 async function callGroq(
   text: string,
   apiKey: string
@@ -95,112 +82,135 @@ async function callGroq(
         response_format: { type: "json_object" },
       }),
     });
-
     if (!response.ok) return { ok: false };
-
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
-
     if (!content) return { ok: false };
-
     return { ok: true, data: JSON.parse(content) };
   } catch {
     return { ok: false };
   }
 }
 
-// ─── Analyze Handler ───────────────────────────────────────────────────────────
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
   }
 
   try {
-    const body = await req.json();
+    // ── Read raw body text first for debugging ───────────────────────────
+    const rawText = await req.text();
+    console.log("Raw request body:", rawText.slice(0, 500));
 
-    const file: File = body.file; // ← Browser sends "file"
-    const extractedText: string = body.text;
-
-    if (!file || !extractedText) {
+    // ── Parse JSON safely ────────────────────────────────────────────────
+    let body: Record<string, unknown>;
+    try {
+      body = JSON.parse(rawText);
+    } catch {
+      console.error("Body is not valid JSON");
       return new Response(
-        JSON.stringify({ error: "Missing PDF or text extraction." }),
+        JSON.stringify({ error: "Request body must be valid JSON." }),
         { status: 400, headers: jsonHeaders }
       );
     }
 
-    // 1. Hash the uploaded file
-    const fileHash = await getFileHash(file);
+    console.log("Parsed body keys:", Object.keys(body));
 
-    // 2. Check cache
+    // ── Support BOTH old field names and new ones ────────────────────────
+    // Old: { file, text }  →  New: { fileHash, fileName, text }
+    const fileHash = (body.fileHash ?? body.file_hash ?? null) as string | null;
+    const fileName = (body.fileName ?? body.file_name ?? "unknown.pdf") as string;
+    const extractedText = (body.text ?? body.extractedText ?? null) as string | null;
+
+    // ── Validation with descriptive errors ──────────────────────────────
+    if (!fileHash) {
+      console.error("Missing fileHash. Received keys:", Object.keys(body));
+      return new Response(
+        JSON.stringify({
+          error: "Missing 'fileHash' in request body.",
+          receivedKeys: Object.keys(body),
+          hint: "Compute SHA-256 hash of the file in the browser and send it as 'fileHash'.",
+        }),
+        { status: 400, headers: jsonHeaders }
+      );
+    }
+
+    if (!extractedText) {
+      console.error("Missing text. Received keys:", Object.keys(body));
+      return new Response(
+        JSON.stringify({
+          error: "Missing 'text' in request body.",
+          receivedKeys: Object.keys(body),
+          hint: "Send extracted PDF text as 'text'.",
+        }),
+        { status: 400, headers: jsonHeaders }
+      );
+    }
+
+    // ── 1. Cache lookup ──────────────────────────────────────────────────
     const { data: cached } = await supabase
       .from("pdf_analysis_cache")
-      .select("*")
+      .select("full_report")
       .eq("file_hash", fileHash)
       .single();
 
-    if (cached) {
-      console.log("Cache hit → returning stored result.");
-      return new Response(JSON.stringify(cached.full_report), {
-        headers: jsonHeaders,
-      });
+    if (cached?.full_report) {
+      console.log(`Cache HIT for ${fileHash.slice(0, 10)}…`);
+      return new Response(
+        JSON.stringify({ ...cached.full_report, cached: true }),
+        { headers: jsonHeaders }
+      );
     }
 
-    // truncate (token safety)
-    const truncated = extractedText.slice(0, 12000);
+    // ── 2. Call AI ───────────────────────────────────────────────────────
+    console.log(`Cache MISS — calling AI for ${fileHash.slice(0, 10)}…`);
 
+    const truncated = extractedText.slice(0, 12000);
     const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");
     const GROQ_KEY = Deno.env.get("GROQ_API_KEY");
 
     let result: AnalysisResult | null = null;
-    let provider = "none";
 
-    // Try Gemini
     if (GEMINI_KEY) {
       const g = await callGemini(truncated, GEMINI_KEY);
-      if (g.ok) {
-        result = g.data;
-        provider = "gemini";
-      }
+      if (g.ok) result = g.data;
     }
-
-    // fallback → Groq
     if (!result && GROQ_KEY) {
       const g = await callGroq(truncated, GROQ_KEY);
-      if (g.ok) {
-        result = g.data;
-        provider = "groq";
-      }
+      if (g.ok) result = g.data;
     }
 
     if (!result) {
       return new Response(
-        JSON.stringify({
-          error: "Both AI providers failed.",
-          fallback: true,
-        }),
+        JSON.stringify({ error: "Both AI providers failed.", fallback: true }),
         { status: 200, headers: jsonHeaders }
       );
     }
 
-    // 3. Save result in cache
-    await supabase.from("pdf_analysis_cache").insert({
-      file_hash: fileHash,
-      file_name: file.name,
-      full_report: result,
-      ai_percentage: result.aiPercentage,
-      human_percentage: result.humanPercentage,
-    });
+    // ── 3. Save to cache ─────────────────────────────────────────────────
+    const { error: insertError } = await supabase
+      .from("pdf_analysis_cache")
+      .insert({
+        file_hash: fileHash,
+        file_name: fileName,
+        full_report: result,
+        ai_percentage: result.aiPercentage,
+        human_percentage: result.humanPercentage,
+      });
 
-    return new Response(JSON.stringify(result), {
-      headers: jsonHeaders,
-    });
-  } catch (err) {
-    console.error(err);
+    if (insertError) {
+      console.error("Cache insert failed:", insertError.message);
+    }
+
     return new Response(
-      JSON.stringify({
-        error: "Analyze service unavailable.",
-        fallback: true,
-      }),
+      JSON.stringify({ ...result, cached: false }),
+      { headers: jsonHeaders }
+    );
+
+  } catch (err) {
+    console.error("Unhandled edge function error:", err);
+    return new Response(
+      JSON.stringify({ error: "Analyze service unavailable.", fallback: true }),
       { status: 200, headers: jsonHeaders }
     );
   }
