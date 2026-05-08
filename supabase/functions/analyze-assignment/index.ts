@@ -68,7 +68,7 @@ async function callGemini(
         }),
       }
     );
-
+ 
     if (!response.ok) {
       const t = await response.text();
       console.error("Gemini error:", response.status, t);
