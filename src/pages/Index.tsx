@@ -9,8 +9,17 @@ import { extractText } from '@/lib/fileParser';
 import { generateReport } from '@/lib/reportGenerator';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-// import { getFileHash } from '@/functions/analyze-assignment/utils/hashFile'; // ← ADD THIS IMPORT
-import {getFileHash} from '../../supabase/functions/analyze-assignment/utils/hashFile'
+
+// ── Inline hash function — do NOT import this from the Deno edge-function folder.
+// That import silently breaks in the browser build, making every file produce
+// the same (undefined) hash and returning the same cached result every time.
+async function getFileHash(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 const Index = () => {
   const { user } = useAuth();
   const [analyzing, setAnalyzing] = useState(false);
@@ -28,7 +37,6 @@ const Index = () => {
     setFileName(file.name);
 
     try {
-      // Extract text from PDF
       const text = await extractText(file);
       if (!text.trim()) {
         toast.error('Could not extract text from file.');
@@ -36,15 +44,15 @@ const Index = () => {
         return;
       }
 
-      // ── Compute file hash in the browser ──────────────────────────────
-      // This is the key fix: hash must be computed here and sent to the
-      // edge function so it can cache results by file identity.
-      const fileHash = await getFileHash(file); // ← ADD THIS
+      const fileHash = await getFileHash(file);
+
+      // Quick sanity-check — remove after confirming the fix
+      console.log('[analyze] file:', file.name, '| hash:', fileHash.slice(0, 12) + '…');
 
       const { data, error } = await supabase.functions.invoke('analyze-assignment', {
         body: {
-          fileHash,        // ← ADD THIS (was missing — caused the 400)
-          fileName: file.name, // ← ADD THIS
+          fileHash,
+          fileName: file.name,
           text,
         },
       });
@@ -70,7 +78,6 @@ const Index = () => {
 
       setResult(data as AnalysisResult);
 
-      // Show cache hint if result came from cache
       if (data.cached) {
         toast.success('Analysis complete! (result from cache)');
       } else {
@@ -83,6 +90,11 @@ const Index = () => {
     } finally {
       setAnalyzing(false);
     }
+  };
+
+  const handleReset = () => {
+    setResult(null);
+    setFileName('');
   };
 
   const handleDownload = () => {
@@ -111,7 +123,7 @@ const Index = () => {
               result={result}
               fileName={fileName}
               onDownload={handleDownload}
-              onReset={() => { setResult(null); setFileName(''); }}
+              onReset={handleReset}
             />
           ) : (
             <div key="upload" className="w-full flex flex-col items-center gap-8">
@@ -123,7 +135,11 @@ const Index = () => {
                   Upload your assignment to detect AI-generated content and internet plagiarism.
                 </p>
               </div>
-              <FileUpload onFileSelect={handleAnalyze} isAnalyzing={analyzing} />
+              <FileUpload
+                onFileSelect={handleAnalyze}
+                onReset={handleReset}
+                isAnalyzing={analyzing}
+              />
             </div>
           )}
         </AnimatePresence>
