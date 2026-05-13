@@ -65,7 +65,7 @@ export function generateReport(
   doc.setFontSize(10);
   doc.setTextColor(235, 215, 190);
 
-  
+
 
   // Decorative line
   doc.setDrawColor(...GOLD);
@@ -398,15 +398,15 @@ export function generateReport(
     result.aiPercentage >= 60
       ? "HIGH AI CONTENT DETECTED"
       : result.aiPercentage >= 30
-      ? "MODERATE AI CONTENT DETECTED"
-      : "LIKELY HUMAN AUTHORED";
+        ? "MODERATE AI CONTENT DETECTED"
+        : "LIKELY HUMAN AUTHORED";
 
   const verdictColor =
     result.aiPercentage >= 60
       ? RED
       : result.aiPercentage >= 30
-      ? AMBER
-      : GREEN;
+        ? AMBER
+        : GREEN;
 
   const verdictW = 118;
   const verdictX = (W - verdictW) / 2;
@@ -445,7 +445,16 @@ export function generateReport(
   // ─────────────────────────────────────────────────────────
   // SUMMARY
   // ─────────────────────────────────────────────────────────
+  const summaryLines = doc.splitTextToSize(result.summary, W - MX * 2);
+  const summaryH = summaryLines.length * 6;
+  const sigBlockH = 60; // approx height needed for signature + footer gap
+  const remaining = H - 20 - y;          // 20 = footer clearance
 
+  if (remaining < summaryH + sigBlockH) {
+    doc.addPage();
+    drawPageBackground(doc, W, H);
+    y = 28;                               // top margin on new page
+  }
   y = drawSectionHeading(
     doc,
     "SUMMARY",
@@ -458,10 +467,10 @@ export function generateReport(
   doc.setFontSize(11);
   doc.setTextColor(...DARK);
 
-  const summaryLines = doc.splitTextToSize(
-    result.summary,
-    W - MX * 2
-  );
+  // const summaryLines = doc.splitTextToSize(
+  //   result.summary,
+  //   W - MX * 2
+  // );
 
   doc.text(summaryLines, MX, y);
 
@@ -479,43 +488,44 @@ export function generateReport(
   doc.setDrawColor(...MAROON);
   doc.setLineWidth(0.6);
 
-  doc.line(MX, y + 18, MX + 65, y + 18);
+  // doc.line(MX, y + 18, MX + 65, y + 18);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(...MAROON);
+  // After signature text is placed, ensure it never overlaps the footer
+  const SIG_Y = Math.min(y, H - 55);   // at most 55 mm above page bottom
 
-  doc.text(
-    "Academic Integrity Officer",
-    MX,
-    y + 24
-  );
+  // then use SIG_Y instead of y for all signature drawing calls
+  doc.line(MX, SIG_Y + 18, MX + 65, SIG_Y + 18);
+  doc.text("Academic Integrity Officer", MX, SIG_Y + 24);
+  // ...etc
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(...MUTED);
 
-  doc.text(
-    "Stella College - AI Assessment Division",
-    MX,
-    y + 30
-  );
-
+  // doc.text(
+  //   "Stella College - AI Assessment Division",
+  //   MX,
+  //   y + 30
+  // );
+  doc.text("Stella College - AI Assessment Division", MX, SIG_Y + 30);
   // Seal
   const sealX = W - 50;
 
   doc.setDrawColor(...GOLD);
   doc.setLineWidth(1);
 
-  doc.circle(sealX, y + 12, 16);
+  // doc.circle(sealX, y + 12, 16);
 
   doc.setLineWidth(0.5);
 
-  doc.circle(sealX, y + 12, 13);
+  // doc.circle(sealX, y + 12, 13);
 
   doc.setFillColor(...MAROON);
 
-  doc.circle(sealX, y + 12, 10, "F");
+  // doc.circle(sealX, y + 12, 10, "F");
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(6);
