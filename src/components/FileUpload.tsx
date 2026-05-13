@@ -1,40 +1,66 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, FileText, X, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
+  onReset?: () => void;   // ← NEW: parent clears its result when called
   isAnalyzing: boolean;
 }
 
 const ACCEPTED = '.pdf,.doc,.docx,.txt';
 const MAX_SIZE = 20 * 1024 * 1024;
 
-const FileUpload = ({ onFileSelect, isAnalyzing }: FileUploadProps) => {
+const FileUpload = ({ onFileSelect, onReset, isAnalyzing }: FileUploadProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);  // ← NEW: ref so we can reset the input value
 
-  const handleFile = useCallback((f: File) => {
-    setError('');
-    const ext = f.name.split('.').pop()?.toLowerCase();
-    if (!['pdf', 'doc', 'docx', 'txt'].includes(ext || '')) {
-      setError('Unsupported file type. Use PDF, DOCX, DOC, or TXT.');
-      return;
-    }
-    if (f.size > MAX_SIZE) {
-      setError('File exceeds 20MB limit.');
-      return;
-    }
-    setFile(f);
-  }, []);
+  const handleFile = useCallback(
+    (f: File) => {
+      setError('');
+      const ext = f.name.split('.').pop()?.toLowerCase();
+      if (!['pdf', 'doc', 'docx', 'txt'].includes(ext || '')) {
+        setError('Unsupported file type. Use PDF, DOCX, DOC, or TXT.');
+        return;
+      }
+      if (f.size > MAX_SIZE) {
+        setError('File exceeds 20MB limit.');
+        return;
+      }
 
-  const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragActive(false);
-    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
-  }, [handleFile]);
+      // ← NEW: if the user swaps to a different file, clear the parent's stale result
+      onReset?.();
+
+      setFile(f);
+
+      // ← NEW: reset the input so selecting the same file again still fires onChange
+      if (inputRef.current) inputRef.current.value = '';
+    },
+    [onReset],
+  );
+
+  const clearFile = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setFile(null);
+      setError('');
+      onReset?.();                                  // ← NEW: also clear parent result on X
+      if (inputRef.current) inputRef.current.value = '';
+    },
+    [onReset],
+  );
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragActive(false);
+      if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    },
+    [handleFile],
+  );
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B';
@@ -57,10 +83,12 @@ const FileUpload = ({ onFileSelect, isAnalyzing }: FileUploadProps) => {
           ${dragActive ? 'border-primary/50 shadow-[var(--glow-primary)]' : ''}
           ${file ? 'border-primary/20' : ''}`}
         onClick={() => {
-          if (!file) document.getElementById('file-input')?.click();
+          if (!file) inputRef.current?.click();
         }}
       >
+        {/* ← CHANGED: use ref instead of getElementById */}
         <input
+          ref={inputRef}
           id="file-input"
           type="file"
           accept={ACCEPTED}
@@ -94,8 +122,9 @@ const FileUpload = ({ onFileSelect, isAnalyzing }: FileUploadProps) => {
                   <p className="text-foreground font-medium truncate">{file.name}</p>
                   <p className="text-muted-foreground text-sm">{formatSize(file.size)}</p>
                 </div>
+                {/* ← CHANGED: use clearFile handler */}
                 <button
-                  onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                  onClick={clearFile}
                   className="p-2 rounded-lg hover:bg-muted/60 text-muted-foreground transition-colors"
                 >
                   <X className="h-5 w-5" />
