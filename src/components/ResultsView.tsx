@@ -51,7 +51,7 @@ const ResultsView = ({ result, fileName, onDownload, onReset }: ResultsViewProps
       </motion.div>
 
       {/* Summary */}
-      <motion.div variants={item} className="glass-card rounded-2xl p-6">
+      <motion.div variants={item} className="glass-card rounded-2xl p-6 mb-4">
         <div className="flex items-center gap-2 mb-3">
           <BarChart3 className="h-5 w-5 text-primary" />
           <h3 className="font-display font-semibold text-foreground">Analysis Summary</h3>
