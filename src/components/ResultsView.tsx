@@ -56,7 +56,7 @@ const ResultsView = ({ result, fileName, onDownload, onReset }: ResultsViewProps
           <BarChart3 className="h-5 w-5 text-primary" />
           <h3 className="font-display font-semibold text-foreground">Analysis Summary</h3>
         </div>
-        <p className="text-muted-foreground text-sm leading-relaxed">{result.summary}</p>
+        <p className="text-muted-foreground text-sm mt-4 leading-relaxed">{result.summary}</p>
       </motion.div>
 
       {/* Internet content info */}
@@ -110,8 +110,8 @@ const ResultsView = ({ result, fileName, onDownload, onReset }: ResultsViewProps
               const verdictColor = isCorrect
                 ? 'text-primary border-primary/40'
                 : isPartial
-                ? 'text-warning border-warning/40'
-                : 'text-destructive border-destructive/40';
+                  ? 'text-warning border-warning/40'
+                  : 'text-destructive border-destructive/40';
               return (
                 <div key={i} className={`rounded-xl border-l-4 bg-muted/40 p-4 ${verdictColor}`}>
                   <div className="flex items-start justify-between gap-2 mb-2">
