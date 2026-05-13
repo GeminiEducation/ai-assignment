@@ -56,7 +56,7 @@ const ResultsView = ({ result, fileName, onDownload, onReset }: ResultsViewProps
           <BarChart3 className="h-5 w-5 text-primary" />
           <h3 className="font-display font-semibold text-foreground">Analysis Summary</h3>
         </div>
-        <p className="text-muted-foreground text-sm mt-4 leading-relaxed">{result.summary}</p>
+        <p className="text-muted-foreground text-sm mb-4leading-relaxed">{result.summary}</p>
       </motion.div>
 
       {/* Internet content info */}
