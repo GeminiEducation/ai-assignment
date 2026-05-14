@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import CircleProgress from './CircleProgress';
 import { Button } from '@/components/ui/button';
-import { generateReport } from '@/lib/reportGenerator';
+import { generateMultiReport } from '@/lib/reportGenerator';
 import type { FileEntry, AnalysisResult } from '@/lib/types';
 
 interface MultiResultsViewProps {
@@ -18,11 +18,9 @@ interface MultiResultsViewProps {
 const SingleResult = ({
     result,
     fileName,
-    onDownload,
 }: {
     result: AnalysisResult;
     fileName: string;
-    onDownload: () => void;
 }) => {
     const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
     const container = { hidden: {}, show: { transition: { staggerChildren: 0.1 } } };
@@ -133,11 +131,8 @@ const SingleResult = ({
             )}
 
             {/* Download */}
-            <motion.div variants={item} className="flex justify-center">
-                <Button onClick={onDownload} size="sm" className="gap-2 bg-primary text-primary-foreground font-display">
-                    <Download className="h-4 w-4" />
-                    Download PDF Report
-                </Button>
+            <motion.div variants={item} className="flex justify-center pt-1">
+                <p className="text-xs text-muted-foreground italic">Use the "Download Full Report PDF" button above to export all files.</p>
             </motion.div>
         </motion.div>
     );
@@ -158,10 +153,7 @@ const MultiResultsView = ({ entries, onReset }: MultiResultsViewProps) => {
         return null;
     };
 
-    const handleDownload = (entry: FileEntry) => {
-        if (!entry.result) return;
-        generateReport(entry.result, entry.file.name, undefined);
-    };
+    const handleDownloadAll = () => generateMultiReport(entries);
 
     return (
         <motion.div
@@ -178,10 +170,20 @@ const MultiResultsView = ({ entries, onReset }: MultiResultsViewProps) => {
                             {finished.length} of {entries.length} file{entries.length !== 1 ? 's' : ''} analyzed
                         </p>
                     </div>
-                    <Button variant="outline" onClick={onReset} size="sm" className="gap-2 font-display">
-                        <RefreshCw className="h-4 w-4" />
-                        Start Over
-                    </Button>
+                    <div className="flex gap-2 flex-wrap">
+                        <Button
+                            size="sm"
+                            className="gap-2 bg-primary text-primary-foreground font-display"
+                            onClick={handleDownloadAll}
+                        >
+                            <Download className="h-4 w-4" />
+                            Download Full Report PDF
+                        </Button>
+                        <Button variant="outline" onClick={onReset} size="sm" className="gap-2 font-display">
+                            <RefreshCw className="h-4 w-4" />
+                            Start Over
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Aggregate chips */}
@@ -250,7 +252,6 @@ const MultiResultsView = ({ entries, onReset }: MultiResultsViewProps) => {
                         <SingleResult
                             result={activeEntry.result}
                             fileName={activeEntry.file.name}
-                            onDownload={() => handleDownload(activeEntry)}
                         />
                     </motion.div>
                 ) : activeEntry?.status === 'error' ? (
