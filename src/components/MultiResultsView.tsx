@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Download, AlertTriangle, CheckCircle, Info, BarChart3, Globe,
@@ -143,6 +143,29 @@ const MultiResultsView = ({ entries, onReset }: MultiResultsViewProps) => {
     const finished = entries.filter((e) => e.status === 'done' || e.status === 'cached');
     const [activeId, setActiveId] = useState<string>(finished[0]?.id ?? '');
 
+    // Track whether the user has manually clicked a tab so we don't override it.
+    const userPickedTab = useRef(false);
+
+    // Bug fix: when a new file completes analysis, auto-switch to it
+    // unless the user has already manually selected a specific tab.
+    useEffect(() => {
+        if (finished.length === 0) return;
+        const currentStillValid = finished.some((e) => e.id === activeId);
+        if (!currentStillValid || !userPickedTab.current) {
+            // Auto-follow the most recently completed entry
+            setActiveId(finished[finished.length - 1].id);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [finished.length]);
+
+    const handleTabClick = (id: string) => {
+        const entry = entries.find((e) => e.id === id);
+        if (entry?.result) {
+            userPickedTab.current = true;
+            setActiveId(id);
+        }
+    };
+
     const activeEntry = entries.find((e) => e.id === activeId) ?? finished[0];
 
     const statusIcon = (entry: FileEntry) => {
@@ -216,7 +239,7 @@ const MultiResultsView = ({ entries, onReset }: MultiResultsViewProps) => {
                     {entries.map((entry) => (
                         <button
                             key={entry.id}
-                            onClick={() => entry.result && setActiveId(entry.id)}
+                            onClick={() => handleTabClick(entry.id)}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border
                 ${activeEntry?.id === entry.id
                                     ? 'bg-primary/20 border-primary/40 text-primary'

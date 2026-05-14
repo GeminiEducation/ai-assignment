@@ -123,6 +123,14 @@ serve(async (req: Request) => {
       );
     }
 
+    // Guard: reject suspiciously short hashes (should be 64-char SHA-256 hex)
+    if (fileHash.length < 16) {
+      return new Response(
+        JSON.stringify({ error: "Invalid fileHash — must be a SHA-256 hex string." }),
+        { status: 400, headers: jsonHeaders }
+      );
+    }
+
     // 1. Cache check
     const { data: cached, error: cacheError } = await supabase
       .from("pdf_analysis_cache")
