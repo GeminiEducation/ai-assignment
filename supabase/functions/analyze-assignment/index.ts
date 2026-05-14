@@ -80,19 +80,21 @@ async function callGemini(text: string, apiKey: string): Promise<{ ok: true; dat
 
 async function callGroq(text: string, apiKey: string): Promise<{ ok: true; data: AnalysisResult } | { ok: false }> {
   try {
+    const xyz = JSON.stringify({
+      model: "llama-3.1-8b-instant",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: `Analyze this text:\n\n${text}` },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1,
+    })
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: `Analyze this text:\n\n${text}` },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.1,
-      }),
+      body: xyz
     });
+    console.log(xyz)
     if (!response.ok) {
       console.error(`Groq HTTP ${response.status}:`, await response.text());
       return { ok: false };
