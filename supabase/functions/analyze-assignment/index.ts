@@ -137,21 +137,21 @@ serve(async (req: Request) => {
     }
 
     // 1. Cache check
-    const { data: cached, error: cacheError } = await supabase
-      .from("pdf_analysis_cache")
-      .select("full_report")
-      .eq("file_hash", fileHash)
-      .single();
+    // const { data: cached, error: cacheError } = await supabase
+    //   .from("pdf_analysis_cache")
+    //   .select("full_report")
+    //   .eq("file_hash", fileHash)
+    //   .single();
 
-    if (cacheError && cacheError.code !== "PGRST116") console.error("Cache error:", cacheError.message);
+    // if (cacheError && cacheError.code !== "PGRST116") console.error("Cache error:", cacheError.message);
 
-    if (cached?.full_report) {
-      console.log("Cache HIT");
-      return new Response(JSON.stringify({ ...cached.full_report, cached: true }), { headers: jsonHeaders });
-    }
+    // if (cached?.full_report) {
+    //   console.log("Cache HIT");
+    //   return new Response(JSON.stringify({ ...cached.full_report, cached: true }), { headers: jsonHeaders });
+    // }
 
     // 2. Call AI
-    console.log("Cache MISS — calling AI...");
+    // console.log("Cache MISS — calling AI...");
     const truncated = extractedText.slice(0, 12000);
     const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");
     const GROQ_KEY = Deno.env.get("GROQ_API_KEY");
