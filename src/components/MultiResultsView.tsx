@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Download, AlertTriangle, CheckCircle, Info, BarChart3, Globe,
@@ -141,24 +141,8 @@ const SingleResult = ({
 // ── Main multi-results dashboard ─────────────────────────────────────────────
 const MultiResultsView = ({ entries, onReset }: MultiResultsViewProps) => {
     const finished = entries.filter((e) => e.status === 'done' || e.status === 'cached');
-    const [activeId, setActiveId] = useState<string>('');
-    // Track whether the user has manually chosen a tab
-    const userSelectedRef = useRef(false);
+    const [activeId, setActiveId] = useState<string>(finished[0]?.id ?? '');
 
-    // Auto-select the first finished entry; after that, only switch if user
-    // hasn't manually picked a tab yet (so new completions don't hijack the view)
-    useEffect(() => {
-        if (!userSelectedRef.current && finished.length > 0) {
-            setActiveId(finished[0].id);
-        }
-    }, [finished.length]); // re-run whenever a new file finishes
-
-    const handleTabSelect = (id: string) => {
-        userSelectedRef.current = true;
-        setActiveId(id);
-    };
-
-    // Resolve active entry: prefer explicit selection, fall back to first finished
     const activeEntry = entries.find((e) => e.id === activeId) ?? finished[0];
 
     const statusIcon = (entry: FileEntry) => {
@@ -232,7 +216,7 @@ const MultiResultsView = ({ entries, onReset }: MultiResultsViewProps) => {
                     {entries.map((entry) => (
                         <button
                             key={entry.id}
-                            onClick={() => entry.result && handleTabSelect(entry.id)}
+                            onClick={() => entry.result && setActiveId(entry.id)}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border
                 ${activeEntry?.id === entry.id
                                     ? 'bg-primary/20 border-primary/40 text-primary'
