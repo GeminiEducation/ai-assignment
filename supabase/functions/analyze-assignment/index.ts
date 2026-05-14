@@ -89,17 +89,20 @@ async function callGroq(text: string, apiKey: string): Promise<{ ok: true; data:
       response_format: { type: "json_object" },
       temperature: 0.1,
     })
+    console.log("call groq function 1 ", xyz)
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: xyz
     });
-    console.log(xyz)
+    console.log("call groq function 2", response)
     if (!response.ok) {
       console.error(`Groq HTTP ${response.status}:`, await response.text());
       return { ok: false };
     }
+
     const data = await response.json();
+    console.log("call groq function 3", response)
     const content = data.choices?.[0]?.message?.content;
     if (!content) { console.error("Groq: empty content", JSON.stringify(data)); return { ok: false }; }
     try { return { ok: true, data: JSON.parse(content) }; }
