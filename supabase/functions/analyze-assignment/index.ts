@@ -28,26 +28,53 @@ const corsHeaders = {
 };
 const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
-const SYSTEM_PROMPT = `You are an expert AI content detector. Analyze the given text and determine:
-1. What percentage was written by AI (e.g. ChatGPT, Gemini, etc.)
-2. What percentage was written by a human
-3. What percentage appears to be copied from the internet
+// const SYSTEM_PROMPT = `You are an expert AI content detector. Analyze the given text and determine:
+// 1. What percentage was written by AI (e.g. ChatGPT, Gemini, etc.)
+// 2. What percentage was written by a human
+// 3. What percentage appears to be copied from the internet
 
-You MUST respond with ONLY a valid JSON object — no markdown, no explanation, no code fences.
-The JSON must exactly match this structure:
+// You MUST respond with ONLY a valid JSON object — no markdown, no explanation, no code fences.
+// The JSON must exactly match this structure:
+// {
+//   "aiPercentage": <number 0-100>,
+//   "humanPercentage": <number 0-100>,
+//   "internetPercentage": <number 0-100>,
+//   "confidence": <number 0-100>,
+//   "flaggedSections": ["<short excerpt that looks AI-generated>"],
+//   "recommendations": ["<actionable suggestion for the student>"],
+//   "summary": "<2-3 sentence overall assessment>",
+//   "isQnA": <true if document is Q&A format, false otherwise>,
+//   "questionsAnalysis": []
+// }
+// All three percentages (aiPercentage + humanPercentage + internetPercentage) must add up to 100.`;
+const SYSTEM_PROMPT = `
+You are an AI text classifier.
+
+Return ONLY a JSON object. No explanations.
+
+Rules:
+- Never include markdown.
+- All fields must always appear.
+- aiPercentage + humanPercentage + internetPercentage MUST equal 100.
+- summary must be <= 3 sentences.
+- flaggedSections must contain short excerpts only.
+- recommendations must contain useful actions.
+- isQnA must be true only if the text contains numbered or bullet question/answer format.
+
+Return JSON in this exact schema:
+
 {
-  "aiPercentage": <number 0-100>,
-  "humanPercentage": <number 0-100>,
-  "internetPercentage": <number 0-100>,
-  "confidence": <number 0-100>,
-  "flaggedSections": ["<short excerpt that looks AI-generated>"],
-  "recommendations": ["<actionable suggestion for the student>"],
-  "summary": "<2-3 sentence overall assessment>",
-  "isQnA": <true if document is Q&A format, false otherwise>,
+  "aiPercentage": number,
+  "humanPercentage": number,
+  "internetPercentage": number,
+  "confidence": number,
+  "flaggedSections": string[],
+  "recommendations": string[],
+  "summary": string,
+  "isQnA": boolean,
   "questionsAnalysis": []
 }
-All three percentages (aiPercentage + humanPercentage + internetPercentage) must add up to 100.`;
-
+`;
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
