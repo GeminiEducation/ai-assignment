@@ -28,64 +28,51 @@ const corsHeaders = {
 };
 const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
-// const SYSTEM_PROMPT = `You are an expert AI content detector. Analyze the given text and determine:
-// 1. What percentage was written by AI (e.g. ChatGPT, Gemini, etc.)
-// 2. What percentage was written by a human
-// 3. What percentage appears to be copied from the internet
-
-// You MUST respond with ONLY a valid JSON object — no markdown, no explanation, no code fences.
-// The JSON must exactly match this structure:
-// {
-//   "aiPercentage": <number 0-100>,
-//   "humanPercentage": <number 0-100>,
-//   "internetPercentage": <number 0-100>,
-//   "confidence": <number 0-100>,
-//   "flaggedSections": ["<short excerpt that looks AI-generated>"],
-//   "recommendations": ["<actionable suggestion for the student>"],
-//   "summary": "<2-3 sentence overall assessment>",
-//   "isQnA": <true if document is Q&A format, false otherwise>,
-//   "questionsAnalysis": []
-// }
-// All three percentages (aiPercentage + humanPercentage + internetPercentage) must add up to 100.`;
+// ── FIX 1: Revised system prompt — less biased, targets real AI signals ──────
 const SYSTEM_PROMPT = `
-You are a writing analysis assistant that estimates whether text is likely AI-generated or human-written based on linguistic patterns.
+You are a probabilistic writing analysis assistant. Your job is to estimate whether text was
+likely AI-generated or human-written based on reliable linguistic signals.
 
-IMPORTANT:
-- You are NOT a ground-truth system.
-- You are providing probabilistic estimates, not factual classification.
-- Do NOT claim certainty.
+IMPORTANT RULES:
+- You are NOT a ground-truth classifier. Provide ESTIMATES, not verdicts.
+- Do NOT penalise text simply for being well-structured, formal, or academic.
+  Students are taught to write clearly. That alone is NOT an AI signal.
+- Confidence should be LOW (< 0.5) unless multiple strong AI signals are present.
+- When in doubt, lean toward HUMAN. A false positive harms a real student.
 
-Analyze based on:
-1. Repetition patterns
-2. Sentence uniformity
-3. Predictability of structure
-4. Lack of personal voice
-5. Generic academic phrasing
-6. Absence of concrete lived experience
+GENUINE AI SIGNALS to look for:
+1. Overuse of filler phrases: "It is worth noting", "In today's world", "This essay will explore",
+   "In conclusion, it is clear that", "One must consider", "It is important to note"
+2. Suspiciously perfect hedging — always balanced ("On one hand… on the other hand") with no personal stance
+3. Implausible consistency — every paragraph is the same length, same rhythm, no typos, no contractions
+4. Hollow generalities — claims sound authoritative but are vague and cite nothing specific
+5. Absence of any concrete personal experience, named examples, or specific dates/numbers where expected
+6. Abrupt topic transitions that feel list-like rather than conversational
 
-Rules:
-- Output ONLY valid JSON
-- Ensure all percentages sum to 100 (best-effort estimation)
-- Do NOT overconfidently label content
-- Keep confidence realistic (0–1 scale)
+DO NOT flag as AI signals:
+- Good grammar and spelling
+- Formal or academic tone
+- Clear structure (introduction, body, conclusion)
+- Use of topic sentences
+- Passive voice
+- Absence of slang
 
-If text is QnA format:
-- set isQnA = true
-- analyze each answer carefully
-
-Return schema exactly:
+Return ONLY valid JSON, no markdown, no fences:
 {
-  "aiPercentage": number,
-  "humanPercentage": number,
-  "internetPercentage": number,
-  "confidence": number,
-  "flaggedSections": string[],
-  "recommendations": string[],
-  "summary": string,
+  "aiPercentage": number (0-100),
+  "humanPercentage": number (0-100),
+  "internetPercentage": number (0-100),
+  "confidence": number (0.0-1.0, be conservative),
+  "flaggedSections": ["exact short excerpt that triggered a flag — must be a real AI signal, not just formal writing"],
+  "recommendations": ["specific, actionable suggestion"],
+  "summary": "2-3 sentence assessment, mention uncertainty clearly",
   "isQnA": boolean,
   "questionsAnalysis": []
 }
+
+All three percentages must sum to 100.
 `;
+
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -102,9 +89,11 @@ async function callGemini(text: string, apiKey: string): Promise<{ ok: true; dat
           contents: [{ role: "user", parts: [{ text: `${SYSTEM_PROMPT}\n\nAnalyze this text:\n\n${text}` }] }],
           generationConfig: {
             responseMimeType: "application/json",
-            temperature: 0,
-            topP: 0,
-            topK: 1
+            // FIX 2: Raise temperature slightly so identical human text
+            // doesn't always get the exact same (wrong) score.
+            // Keep it low enough to remain consistent but not robotically deterministic.
+            temperature: 0.2,
+            topP: 0.9,
           }
         }),
       }
@@ -133,10 +122,10 @@ async function callGroq(text: string, apiKey: string): Promise<{ ok: true; data:
           { role: "user", content: `Analyze this text:\n\n${text}` },
         ],
         response_format: { type: "json_object" },
-        temperature: 0.1,
+        temperature: 0.2, // FIX 2: same change here
       }),
     });
-    
+
     if (!response.ok) {
       console.error(`Groq HTTP ${response.status}:`, await response.text());
       return { ok: false };
@@ -148,6 +137,23 @@ async function callGroq(text: string, apiKey: string): Promise<{ ok: true; data:
     try { return { ok: true, data: JSON.parse(content) }; }
     catch { console.error("Groq: bad JSON:", content.slice(0, 300)); return { ok: false }; }
   } catch (err) { console.error("Groq exception:", err); return { ok: false }; }
+}
+
+// FIX 3: Apply a bias-correction pass.
+// General-purpose LLMs are known to over-predict AI content for formal writing.
+// We apply a mild downward adjustment to aiPercentage when confidence is low.
+function applyBiasCorrection(result: AnalysisResult): AnalysisResult {
+  if (result.confidence < 0.6 && result.aiPercentage > 40) {
+    const adjustment = Math.round((0.6 - result.confidence) * 30); // max ~18 points
+    const newAi = Math.max(0, result.aiPercentage - adjustment);
+    const diff = result.aiPercentage - newAi;
+    return {
+      ...result,
+      aiPercentage: newAi,
+      humanPercentage: Math.min(100, result.humanPercentage + diff),
+    };
+  }
+  return result;
 }
 
 serve(async (req: Request) => {
@@ -168,7 +174,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // Guard: reject suspiciously short hashes (should be 64-char SHA-256 hex)
     if (fileHash.length < 16) {
       return new Response(
         JSON.stringify({ error: "Invalid fileHash — must be a SHA-256 hex string." }),
@@ -216,6 +221,9 @@ serve(async (req: Request) => {
       );
     }
 
+    // FIX 3: Apply bias correction before caching
+    result = applyBiasCorrection(result);
+
     // 3. Save cache
     const { error: upsertError } = await supabase.from("pdf_analysis_cache").upsert({
       file_hash: fileHash,
@@ -225,7 +233,7 @@ serve(async (req: Request) => {
       human_percentage: result.humanPercentage,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'file_hash' });
-    
+
     if (upsertError) console.error("Cache upsert failed:", upsertError.message);
 
     return new Response(JSON.stringify({ ...result, cached: false }), { headers: jsonHeaders });
